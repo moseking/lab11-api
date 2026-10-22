@@ -103,26 +103,28 @@ const createProxyWithErrorHandling = (target, pathRewrite) => {
 };
 
 // Proxy cac request den dung endpoint cua service
+
 app.use(
     '/users',
     createProxyWithErrorHandling(USER_SERVICE_URL, {
-        '^/': '/users'
+        '^/users': ''
     })
 );
 
 app.use(
     '/products',
     createProxyWithErrorHandling(PRODUCT_SERVICE_URL, {
-        '^/': '/products'
+        '^/products': ''
     })
 );
 
 app.use(
     '/orders',
     createProxyWithErrorHandling(ORDER_SERVICE_URL, {
-        '^/': '/orders'
+        '^/orders': ''
     })
 );
+
 
 // Default route
 app.get('/', (req, res) => {

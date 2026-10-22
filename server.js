@@ -71,17 +71,28 @@ app.get('/health', async (req, res) => {
     });
 });
 
-// Proxy configuration with error handling
-const createProxyWithErrorHandling = (target, pathRewrite) => {
+
+ // Proxy configuration with error handling
+const createProxyWithErrorHandling = (target, prefix) => {
     return createProxyMiddleware({
         target,
         changeOrigin: true,
-        pathRewrite,
-        timeout: 10000,
+
+        // Khoi phuc prefix bi Express loai bo khi mount middleware
+        pathRewrite: (path, req) => {
+            const rewrittenPath = prefix + path;
+            console.log(
+                `Rewriting ${path} -> ${rewrittenPath}`
+            );
+            return rewrittenPath;
+        },
+
+        timeout: 30000,
+        proxyTimeout: 30000,
 
         onError: (err, req, res) => {
             console.error(
-                `Proxy error for ${req.url}:`,
+                `Proxy error for ${req.method} ${req.originalUrl}:`,
                 err.message
             );
 
@@ -96,35 +107,27 @@ const createProxyWithErrorHandling = (target, pathRewrite) => {
 
         onProxyReq: (proxyReq, req, res) => {
             console.log(
-                `Proxying ${req.method} ${req.url} to ${target}`
+                `Proxying ${req.method} ${req.originalUrl} -> ${target}${proxyReq.path}`
             );
         }
     });
 };
 
 // Proxy cac request den dung endpoint cua service
-
 app.use(
     '/users',
-    createProxyWithErrorHandling(USER_SERVICE_URL, {
-        '^/users': ''
-    })
+    createProxyWithErrorHandling(USER_SERVICE_URL, '/users')
 );
 
 app.use(
     '/products',
-    createProxyWithErrorHandling(PRODUCT_SERVICE_URL, {
-        '^/products': ''
-    })
+    createProxyWithErrorHandling(PRODUCT_SERVICE_URL, '/products')
 );
 
 app.use(
     '/orders',
-    createProxyWithErrorHandling(ORDER_SERVICE_URL, {
-        '^/orders': ''
-    })
+    createProxyWithErrorHandling(ORDER_SERVICE_URL, '/orders')
 );
-
 
 // Default route
 app.get('/', (req, res) => {

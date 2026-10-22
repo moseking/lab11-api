@@ -1,14 +1,15 @@
+
 const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const cors = require('cors');
+const axios = require('axios');
 
 const app = express();
 
-// Enable CORS
 app.use(cors());
 app.use(express.json());
 
-// Environment variables for service URLs
+// Cau hinh URL cua cac service
 const USER_SERVICE_URL =
     process.env.USER_SERVICE_URL || 'http://localhost:3001';
 
@@ -25,60 +26,49 @@ console.log('Order Service:', ORDER_SERVICE_URL);
 
 // Health check endpoint
 app.get('/health', async (req, res) => {
-    const healthChecks = {
+    const checkService = async (url) => {
+        try {
+            await axios.get(`${url}/health`, {
+                timeout: 5000
+            });
+
+            return {
+                status: 'healthy',
+                url
+            };
+        } catch (error) {
+            return {
+                status: 'unhealthy',
+                url,
+                error: error.message
+            };
+        }
+    };
+
+    const [userService, productService, orderService] =
+        await Promise.all([
+            checkService(USER_SERVICE_URL),
+            checkService(PRODUCT_SERVICE_URL),
+            checkService(ORDER_SERVICE_URL)
+        ]);
+
+    const allHealthy = [
+        userService,
+        productService,
+        orderService
+    ].every(service => service.status === 'healthy');
+
+    res.status(allHealthy ? 200 : 503).json({
         gateway: {
             status: 'healthy',
             timestamp: new Date().toISOString()
         },
-        services: {}
-    };
-
-    // Check user service
-    try {
-        const userHealth = await fetch(`${USER_SERVICE_URL}/health`);
-
-        healthChecks.services.userService = userHealth.ok
-            ? { status: 'healthy', url: USER_SERVICE_URL }
-            : { status: 'unhealthy', url: USER_SERVICE_URL };
-    } catch (error) {
-        healthChecks.services.userService = {
-            status: 'unhealthy',
-            url: USER_SERVICE_URL,
-            error: error.message
-        };
-    }
-
-    // Check product service
-    try {
-        const productHealth = await fetch(`${PRODUCT_SERVICE_URL}/health`);
-
-        healthChecks.services.productService = productHealth.ok
-            ? { status: 'healthy', url: PRODUCT_SERVICE_URL }
-            : { status: 'unhealthy', url: PRODUCT_SERVICE_URL };
-    } catch (error) {
-        healthChecks.services.productService = {
-            status: 'unhealthy',
-            url: PRODUCT_SERVICE_URL,
-            error: error.message
-        };
-    }
-
-    // Check order service
-    try {
-        const orderHealth = await fetch(`${ORDER_SERVICE_URL}/health`);
-
-        healthChecks.services.orderService = orderHealth.ok
-            ? { status: 'healthy', url: ORDER_SERVICE_URL }
-            : { status: 'unhealthy', url: ORDER_SERVICE_URL };
-    } catch (error) {
-        healthChecks.services.orderService = {
-            status: 'unhealthy',
-            url: ORDER_SERVICE_URL,
-            error: error.message
-        };
-    }
-
-    res.json(healthChecks);
+        services: {
+            userService,
+            productService,
+            orderService
+        }
+    });
 });
 
 // Proxy configuration with error handling
@@ -90,13 +80,18 @@ const createProxyWithErrorHandling = (target, pathRewrite) => {
         timeout: 10000,
 
         onError: (err, req, res) => {
-            console.error(`Proxy error for ${req.url}:`, err.message);
+            console.error(
+                `Proxy error for ${req.url}:`,
+                err.message
+            );
 
-            res.status(503).json({
-                error: 'Service temporarily unavailable',
-                service: target,
-                timestamp: new Date().toISOString()
-            });
+            if (!res.headersSent) {
+                res.status(503).json({
+                    error: 'Service temporarily unavailable',
+                    service: target,
+                    timestamp: new Date().toISOString()
+                });
+            }
         },
 
         onProxyReq: (proxyReq, req, res) => {
@@ -107,25 +102,25 @@ const createProxyWithErrorHandling = (target, pathRewrite) => {
     });
 };
 
-// Create proxy middleware for each service
+// Proxy cac request den dung endpoint cua service
 app.use(
     '/users',
     createProxyWithErrorHandling(USER_SERVICE_URL, {
-        '^/users': ''
+        '^/': '/users'
     })
 );
 
 app.use(
     '/products',
     createProxyWithErrorHandling(PRODUCT_SERVICE_URL, {
-        '^/products': ''
+        '^/': '/products'
     })
 );
 
 app.use(
     '/orders',
     createProxyWithErrorHandling(ORDER_SERVICE_URL, {
-        '^/orders': ''
+        '^/': '/orders'
     })
 );
 
@@ -134,13 +129,11 @@ app.get('/', (req, res) => {
     res.json({
         message: 'Microservices API Gateway',
         version: '1.0.0',
-
         services: {
             userService: USER_SERVICE_URL,
             productService: PRODUCT_SERVICE_URL,
             orderService: ORDER_SERVICE_URL
         },
-
         endpoints: [
             'GET /users - Get all users',
             'POST /users - Create user',
@@ -150,7 +143,6 @@ app.get('/', (req, res) => {
             'POST /orders - Create order',
             'GET /health - Health check all services'
         ],
-
         timestamp: new Date().toISOString()
     });
 });

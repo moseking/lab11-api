@@ -114,20 +114,37 @@ const createProxyWithErrorHandling = (target, prefix) => {
 };
 
 // Proxy cac request den dung endpoint cua service
+
 app.use(
     '/users',
-    createProxyWithErrorHandling(USER_SERVICE_URL, '/users')
+    createProxyMiddleware({
+        target: USER_SERVICE_URL,
+        changeOrigin: true,
+        timeout: 30000,
+        proxyTimeout: 30000
+    })
 );
 
 app.use(
     '/products',
-    createProxyWithErrorHandling(PRODUCT_SERVICE_URL, '/products')
+    createProxyMiddleware({
+        target: PRODUCT_SERVICE_URL,
+        changeOrigin: true,
+        timeout: 30000,
+        proxyTimeout: 30000
+    })
 );
 
 app.use(
     '/orders',
-    createProxyWithErrorHandling(ORDER_SERVICE_URL, '/orders')
+    createProxyMiddleware({
+        target: ORDER_SERVICE_URL,
+        changeOrigin: true,
+        timeout: 30000,
+        proxyTimeout: 30000
+    })
 );
+
 
 // Default route
 app.get('/', (req, res) => {
